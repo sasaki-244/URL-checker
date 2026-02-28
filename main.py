@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlparse
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -11,6 +12,13 @@ class ExtractUrlsRequest(BaseModel):
     text: str
 
 
+class UrlCheckRequest(BaseModel):
+    input_type: str
+    input: str
+    selected_url: str | None = None
+    client_ts: str | None = None
+
+
 def extract_http_urls(text: str) -> list[str]:
     """
     本文から http/https のURLを抽出する最小関数。
@@ -20,12 +28,19 @@ def extract_http_urls(text: str) -> list[str]:
     unique_urls: list[str] = []
     seen: set[str] = set()
     for url in raw_urls:
-        # 文末や括弧閉じに付いた記号を除去する（例: "https://a.com)."）
         cleaned = url.rstrip(".,;:!?)")
         if cleaned and cleaned not in seen:
             seen.add(cleaned)
             unique_urls.append(cleaned)
     return unique_urls
+
+
+def extract_domain(url: str) -> str:
+    """
+    URLからドメイン表示用のホストを取り出す。
+    パースできない場合は空文字を返す。
+    """
+    return urlparse(url).netloc
 
 
 @app.get("/health")
@@ -44,3 +59,21 @@ def extract_urls(request: ExtractUrlsRequest) -> dict[str, list[str]]:
     現時点では http/https のみ対象にする。
     """
     return {"candidate_urls": extract_http_urls(request.text)}
+
+
+@app.post("/v1/url-check")
+def url_check(request: UrlCheckRequest) -> dict[str, str | list[str]]:
+    """
+    URL判定APIの最小版。
+    まだ判定実装は行わず、レスポンス形式を固める。
+    """
+    target_url = request.selected_url or request.input
+    return {
+        "status": "unknown",
+        "domain": extract_domain(target_url),
+        "normalized_url": target_url,
+        "reason_codes": ["network_error"],
+        "candidate_urls": [],
+        "message": "Judgement is not available yet.",
+        "open_recommendation": "warn",
+    }
