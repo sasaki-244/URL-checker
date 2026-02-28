@@ -20,9 +20,11 @@ def extract_http_urls(text: str) -> list[str]:
     unique_urls: list[str] = []
     seen: set[str] = set()
     for url in raw_urls:
-        if url not in seen:
-            seen.add(url)
-            unique_urls.append(url)
+        # 文末や括弧閉じに付いた記号を除去する（例: "https://a.com)."）
+        cleaned = url.rstrip(".,;:!?)")
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            unique_urls.append(cleaned)
     return unique_urls
 
 
