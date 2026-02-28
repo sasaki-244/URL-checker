@@ -1,7 +1,8 @@
 import re
+import os
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 # FastAPIアプリ本体。`uvicorn main:app --reload` で起動される。
@@ -35,20 +36,36 @@ def extract_http_urls(text: str) -> list[str]:
     return unique_urls
 
 
-def extract_domain(url: str) -> str:
-    """
-    URLからドメイン表示用のホストを取り出す。
-    パースできない場合は空文字を返す。
-    """
-    return urlparse(url).netloc
-
-
 def is_http_url(value: str) -> bool:
     """
     http/https かつホストを持つURLかを簡易チェックする。
     """
     parsed = urlparse(value)
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def verify_api_key(authorization: str | None = Header(default=None)) -> None:
+    """
+    固定Bearer APIキー認証。
+    URL_CHECKER_API_KEY と一致しない場合は 401 を返す。
+    """
+    expected = os.getenv("URL_CHECKER_API_KEY")
+    if not expected:
+        raise HTTPException(
+            status_code=500,
+            detail={"reason_code": "server_error", "message": "URL_CHECKER_API_KEY is not configured."},
+        )
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail={"reason_code": "unauthorized", "message": "Authorization header is required."},
+        )
+    token = authorization.removeprefix("Bearer ").strip()
+    if token != expected:
+        raise HTTPException(
+            status_code=401,
+            detail={"reason_code": "unauthorized", "message": "Invalid API key."},
+        )
 
 
 @app.get("/health")
@@ -61,7 +78,10 @@ def health() -> dict[str, str]:
 
 
 @app.post("/v1/extract-urls")
-def extract_urls(request: ExtractUrlsRequest) -> dict[str, list[str]]:
+def extract_urls(
+    request: ExtractUrlsRequest,
+    _: None = Depends(verify_api_key),
+) -> dict[str, list[str]]:
     """
     URL抽出APIの最小実装。
     現時点では http/https のみ対象にする。
@@ -70,7 +90,10 @@ def extract_urls(request: ExtractUrlsRequest) -> dict[str, list[str]]:
 
 
 @app.post("/v1/url-check")
-def url_check(request: UrlCheckRequest) -> dict[str, str | list[str]]:
+def url_check(
+    request: UrlCheckRequest,
+    _: None = Depends(verify_api_key),
+) -> dict[str, str | list[str]]:
     """
     URL判定APIの最小版。
     まだ判定実装は行わず、レスポンス形式を固める。
@@ -115,7 +138,7 @@ def url_check(request: UrlCheckRequest) -> dict[str, str | list[str]]:
 
     return {
         "status": "unknown",
-        "domain": extract_domain(target_url),
+        "domain": urlparse(target_url).netloc,
         "normalized_url": target_url,
         "reason_codes": ["network_error"],
         "candidate_urls": candidate_urls,
