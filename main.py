@@ -1,3 +1,5 @@
+import re
+
 from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -7,6 +9,21 @@ app = FastAPI(title="URL Checker API")
 
 class ExtractUrlsRequest(BaseModel):
     text: str
+
+
+def extract_http_urls(text: str) -> list[str]:
+    """
+    本文から http/https のURLを抽出する最小関数。
+    同じURLが複数回出ても、最初の出現だけを返す。
+    """
+    raw_urls = re.findall(r"https?://[^\s<>()\"']+", text)
+    unique_urls: list[str] = []
+    seen: set[str] = set()
+    for url in raw_urls:
+        if url not in seen:
+            seen.add(url)
+            unique_urls.append(url)
+    return unique_urls
 
 
 @app.get("/health")
@@ -19,9 +36,9 @@ def health() -> dict[str, str]:
 
 
 @app.post("/v1/extract-urls")
-def extract_urls(_: ExtractUrlsRequest) -> dict[str, list[str]]:
+def extract_urls(request: ExtractUrlsRequest) -> dict[str, list[str]]:
     """
-    URL抽出APIの最小版。
-    まずは入力を受け取れることだけ確認し、候補は空配列で返す。
+    URL抽出APIの最小実装。
+    現時点では http/https のみ対象にする。
     """
-    return {"candidate_urls": []}
+    return {"candidate_urls": extract_http_urls(request.text)}
