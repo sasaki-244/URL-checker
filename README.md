@@ -10,6 +10,7 @@ python3 -m pip install -r requirements.txt
 2. APIを起動
 ```bash
 export URL_CHECKER_API_KEY='your-secret-key'
+export GOOGLE_SAFE_BROWSING_API_KEY='your-google-api-key'
 python3 -m uvicorn main:app --reload
 ```
 

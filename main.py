@@ -1,5 +1,7 @@
 import re
 import os
+import json
+from urllib import error, request
 from urllib.parse import urlparse
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -77,14 +79,65 @@ def verify_api_key(authorization: str | None = Header(default=None)) -> None:
 
 def judge_url_locally(url: str) -> LocalJudgeResult:
     """
-    ローカル判定の仮実装。
-    次ステップで Google Safe Browsing 連携に置き換える。
+    Google Safe Browsing を使ったURL判定。
+    - ヒットなし: likely_safe
+    - ヒットあり: suspected
+    - 通信失敗/設定不足: unknown
     """
-    _ = url
+    api_key = os.getenv("GOOGLE_SAFE_BROWSING_API_KEY")
+    if not api_key:
+        return LocalJudgeResult(
+            status="unknown",
+            reason_codes=["network_error"],
+            message="Safe Browsing API key is not configured.",
+            open_recommendation="warn",
+        )
+
+    endpoint = f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={api_key}"
+    payload = {
+        "client": {"clientId": "url-checker", "clientVersion": "0.1"},
+        "threatInfo": {
+            "threatTypes": [
+                "MALWARE",
+                "SOCIAL_ENGINEERING",
+                "UNWANTED_SOFTWARE",
+                "POTENTIALLY_HARMFUL_APPLICATION",
+            ],
+            "platformTypes": ["ANY_PLATFORM"],
+            "threatEntryTypes": ["URL"],
+            "threatEntries": [{"url": url}],
+        },
+    }
+    req = request.Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with request.urlopen(req, timeout=3) as resp:
+            body = resp.read().decode("utf-8")
+        data = json.loads(body) if body else {}
+    except (error.URLError, TimeoutError, json.JSONDecodeError):
+        return LocalJudgeResult(
+            status="unknown",
+            reason_codes=["network_error"],
+            message="Safe Browsing lookup failed.",
+            open_recommendation="warn",
+        )
+
+    if data.get("matches"):
+        return LocalJudgeResult(
+            status="suspected",
+            reason_codes=["safe_browsing_hit"],
+            message="This URL matched Safe Browsing threat data.",
+            open_recommendation="warn",
+        )
     return LocalJudgeResult(
         status="likely_safe",
-        reason_codes=["local_stub_no_hit"],
-        message="No suspicious signal detected by local stub.",
+        reason_codes=["no_hit"],
+        message="No Safe Browsing threat match was found.",
         open_recommendation="allow",
     )
 
