@@ -67,13 +67,29 @@ def url_check(request: UrlCheckRequest) -> dict[str, str | list[str]]:
     URL判定APIの最小版。
     まだ判定実装は行わず、レスポンス形式を固める。
     """
-    target_url = request.selected_url or request.input
+    candidate_urls: list[str] = []
+    if request.input_type == "text":
+        candidate_urls = extract_http_urls(request.input)
+        if not candidate_urls:
+            return {
+                "status": "unknown",
+                "domain": "",
+                "normalized_url": "",
+                "reason_codes": ["no_url_found"],
+                "candidate_urls": [],
+                "message": "No URL was found in the input text.",
+                "open_recommendation": "warn",
+            }
+        target_url = request.selected_url or candidate_urls[0]
+    else:
+        target_url = request.selected_url or request.input
+
     return {
         "status": "unknown",
         "domain": extract_domain(target_url),
         "normalized_url": target_url,
         "reason_codes": ["network_error"],
-        "candidate_urls": [],
+        "candidate_urls": candidate_urls,
         "message": "Judgement is not available yet.",
         "open_recommendation": "warn",
     }
