@@ -20,6 +20,13 @@ class UrlCheckRequest(BaseModel):
     client_ts: str | None = None
 
 
+class LocalJudgeResult(BaseModel):
+    status: str
+    reason_codes: list[str]
+    message: str
+    open_recommendation: str
+
+
 def extract_http_urls(text: str) -> list[str]:
     """
     本文から http/https のURLを抽出する最小関数。
@@ -66,6 +73,20 @@ def verify_api_key(authorization: str | None = Header(default=None)) -> None:
             status_code=401,
             detail={"reason_code": "unauthorized", "message": "Invalid API key."},
         )
+
+
+def judge_url_locally(url: str) -> LocalJudgeResult:
+    """
+    ローカル判定の仮実装。
+    次ステップで Google Safe Browsing 連携に置き換える。
+    """
+    _ = url
+    return LocalJudgeResult(
+        status="likely_safe",
+        reason_codes=["local_stub_no_hit"],
+        message="No suspicious signal detected by local stub.",
+        open_recommendation="allow",
+    )
 
 
 @app.get("/health")
@@ -135,13 +156,14 @@ def url_check(
                 status_code=400,
                 detail={"reason_code": "parse_error", "message": "input must be a valid http/https URL."},
             )
+    judge = judge_url_locally(target_url)
 
     return {
-        "status": "unknown",
+        "status": judge.status,
         "domain": urlparse(target_url).netloc,
         "normalized_url": target_url,
-        "reason_codes": ["network_error"],
+        "reason_codes": judge.reason_codes,
         "candidate_urls": candidate_urls,
-        "message": "Judgement is not available yet.",
-        "open_recommendation": "warn",
+        "message": judge.message,
+        "open_recommendation": judge.open_recommendation,
     }
