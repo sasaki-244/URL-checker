@@ -99,6 +99,11 @@ def url_check(request: UrlCheckRequest) -> dict[str, str | list[str]]:
                 "message": "No URL was found in the input text.",
                 "open_recommendation": "warn",
             }
+        if request.selected_url and request.selected_url not in candidate_urls:
+            raise HTTPException(
+                status_code=400,
+                detail={"reason_code": "parse_error", "message": "selected_url is not in candidate_urls."},
+            )
         target_url = request.selected_url or candidate_urls[0]
     else:
         target_url = request.selected_url or request.input
