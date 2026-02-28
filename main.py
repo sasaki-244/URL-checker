@@ -1,7 +1,7 @@
 import re
 from urllib.parse import urlparse
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 # FastAPIアプリ本体。`uvicorn main:app --reload` で起動される。
@@ -43,6 +43,14 @@ def extract_domain(url: str) -> str:
     return urlparse(url).netloc
 
 
+def is_http_url(value: str) -> bool:
+    """
+    http/https かつホストを持つURLかを簡易チェックする。
+    """
+    parsed = urlparse(value)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     """
@@ -67,6 +75,17 @@ def url_check(request: UrlCheckRequest) -> dict[str, str | list[str]]:
     URL判定APIの最小版。
     まだ判定実装は行わず、レスポンス形式を固める。
     """
+    if request.input_type not in {"url", "text"}:
+        raise HTTPException(
+            status_code=400,
+            detail={"reason_code": "parse_error", "message": "input_type must be 'url' or 'text'."},
+        )
+    if not request.input.strip():
+        raise HTTPException(
+            status_code=400,
+            detail={"reason_code": "parse_error", "message": "input must not be empty."},
+        )
+
     candidate_urls: list[str] = []
     if request.input_type == "text":
         candidate_urls = extract_http_urls(request.input)
@@ -83,6 +102,11 @@ def url_check(request: UrlCheckRequest) -> dict[str, str | list[str]]:
         target_url = request.selected_url or candidate_urls[0]
     else:
         target_url = request.selected_url or request.input
+        if not is_http_url(target_url):
+            raise HTTPException(
+                status_code=400,
+                detail={"reason_code": "parse_error", "message": "input must be a valid http/https URL."},
+            )
 
     return {
         "status": "unknown",
