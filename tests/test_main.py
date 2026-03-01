@@ -91,3 +91,12 @@ def test_verify_api_key_raises_401_when_authorization_header_is_missing(monkeypa
         verify_api_key(None)
     assert exc.value.status_code == 401
     assert exc.value.detail["reason_code"] == "unauthorized"
+
+
+def test_verify_api_key_raises_401_when_bearer_token_is_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("URL_CHECKER_API_KEY", "dummy-secret")
+
+    with pytest.raises(HTTPException) as exc:
+        verify_api_key("Bearer wrong-secret")
+    assert exc.value.status_code == 401
+    assert exc.value.detail["reason_code"] == "unauthorized"
