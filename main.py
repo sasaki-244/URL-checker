@@ -88,7 +88,7 @@ def judge_url_locally(url: str) -> LocalJudgeResult:
     if not api_key:
         return LocalJudgeResult(
             status="unknown",
-            reason_codes=["network_error"],
+            reason_codes=["config_error"],
             message="Safe Browsing API key is not configured.",
             open_recommendation="warn",
         )
@@ -119,11 +119,25 @@ def judge_url_locally(url: str) -> LocalJudgeResult:
         with request.urlopen(req, timeout=3) as resp:
             body = resp.read().decode("utf-8")
         data = json.loads(body) if body else {}
-    except (error.URLError, TimeoutError, json.JSONDecodeError):
+    except TimeoutError:
         return LocalJudgeResult(
             status="unknown",
             reason_codes=["network_error"],
-            message="Safe Browsing lookup failed.",
+            message="Safe Browsing lookup timed out.",
+            open_recommendation="warn",
+        )
+    except error.URLError:
+        return LocalJudgeResult(
+            status="unknown",
+            reason_codes=["network_error"],
+            message="Safe Browsing network request failed.",
+            open_recommendation="warn",
+        )
+    except json.JSONDecodeError:
+        return LocalJudgeResult(
+            status="unknown",
+            reason_codes=["network_error"],
+            message="Safe Browsing response parse failed.",
             open_recommendation="warn",
         )
 
