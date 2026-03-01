@@ -2,7 +2,7 @@ import re
 import os
 import json
 from urllib import error, request
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
@@ -51,6 +51,35 @@ def is_http_url(value: str) -> bool:
     """
     parsed = urlparse(value)
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def normalize_url(value: str) -> str:
+    """
+    URLを最小限に正規化する。
+    - 前後空白を除去
+    - スキームが無ければ https:// を補完
+    - ホスト名を小文字化
+    """
+    normalized = value.strip()
+    if not normalized:
+        return normalized
+    if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", normalized):
+        normalized = f"https://{normalized}"
+
+    parsed = urlparse(normalized)
+    if not parsed.netloc:
+        return normalized
+
+    host = (parsed.hostname or "").lower()
+    netloc = host
+    if parsed.port:
+        netloc = f"{netloc}:{parsed.port}"
+    if parsed.username:
+        userinfo = parsed.username
+        if parsed.password:
+            userinfo = f"{userinfo}:{parsed.password}"
+        netloc = f"{userinfo}@{netloc}"
+    return urlunparse(parsed._replace(netloc=netloc))
 
 
 def verify_api_key(authorization: str | None = Header(default=None)) -> None:
@@ -215,9 +244,9 @@ def url_check(
                 status_code=400,
                 detail={"reason_code": "parse_error", "message": "selected_url is not in candidate_urls."},
             )
-        target_url = request.selected_url or candidate_urls[0]
+        target_url = normalize_url(request.selected_url or candidate_urls[0])
     else:
-        target_url = request.selected_url or request.input
+        target_url = normalize_url(request.selected_url or request.input)
         if not is_http_url(target_url):
             raise HTTPException(
                 status_code=400,

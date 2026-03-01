@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 import pytest
 
-from main import UrlCheckRequest, judge_url_locally, url_check, verify_api_key
+from main import LocalJudgeResult, UrlCheckRequest, judge_url_locally, url_check, verify_api_key
 
 
 def test_url_check_text_no_url_found_returns_unknown() -> None:
@@ -115,3 +115,19 @@ def test_verify_api_key_raises_500_when_server_key_is_missing(monkeypatch: pytes
         verify_api_key("Bearer anything")
     assert exc.value.status_code == 500
     assert exc.value.detail["reason_code"] == "server_error"
+
+
+def test_url_check_normalizes_url_input(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "main.judge_url_locally",
+        lambda url: LocalJudgeResult(
+            status="likely_safe",
+            reason_codes=["stub"],
+            message=f"stub for {url}",
+            open_recommendation="allow",
+        ),
+    )
+
+    result = url_check(UrlCheckRequest(input_type="url", input="  EXAMPLE.COM/path  "), _=None)
+    assert result["normalized_url"] == "https://example.com/path"
+    assert result["domain"] == "example.com"
