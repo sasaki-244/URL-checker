@@ -32,3 +32,11 @@ curl -X POST 'http://127.0.0.1:8000/v1/extract-urls' \
   -H 'Authorization: Bearer your-secret-key' \
   -d '{"text":"check https://example.com"}'
 ```
+
+## Step 3: テストを実行する
+
+```bash
+source venv/bin/activate
+python -m pip install -r requirements.txt
+python -m pytest -q
+```

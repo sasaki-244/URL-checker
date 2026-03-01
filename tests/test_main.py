@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 import pytest
 
-from main import UrlCheckRequest, judge_url_locally, url_check
+from main import UrlCheckRequest, judge_url_locally, url_check, verify_api_key
 
 
 def test_url_check_text_no_url_found_returns_unknown() -> None:
@@ -82,3 +82,12 @@ def test_judge_url_locally_returns_unknown_when_api_key_is_missing(monkeypatch: 
     assert result.status == "unknown"
     assert result.reason_codes == ["config_error"]
     assert result.open_recommendation == "warn"
+
+
+def test_verify_api_key_raises_401_when_authorization_header_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("URL_CHECKER_API_KEY", "dummy-secret")
+
+    with pytest.raises(HTTPException) as exc:
+        verify_api_key(None)
+    assert exc.value.status_code == 401
+    assert exc.value.detail["reason_code"] == "unauthorized"
