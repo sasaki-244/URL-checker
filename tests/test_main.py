@@ -73,3 +73,12 @@ def test_judge_url_locally_returns_likely_safe_when_safe_browsing_has_no_matches
     assert result.status == "likely_safe"
     assert result.reason_codes == ["no_hit"]
     assert result.open_recommendation == "allow"
+
+
+def test_judge_url_locally_returns_unknown_when_api_key_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("GOOGLE_SAFE_BROWSING_API_KEY", raising=False)
+
+    result = judge_url_locally("https://example.com")
+    assert result.status == "unknown"
+    assert result.reason_codes == ["config_error"]
+    assert result.open_recommendation == "warn"
