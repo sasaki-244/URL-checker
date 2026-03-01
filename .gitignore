@@ -1,0 +1,14 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Test/cache artifacts
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS/editor junk
+.DS_Store
