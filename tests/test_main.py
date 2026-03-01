@@ -131,3 +131,43 @@ def test_url_check_normalizes_url_input(monkeypatch: pytest.MonkeyPatch) -> None
     result = url_check(UrlCheckRequest(input_type="url", input="  EXAMPLE.COM/path  "), _=None)
     assert result["normalized_url"] == "https://example.com/path"
     assert result["domain"] == "example.com"
+
+
+def test_url_check_text_accepts_selected_url_when_only_host_case_differs(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "main.judge_url_locally",
+        lambda url: LocalJudgeResult(
+            status="likely_safe",
+            reason_codes=["stub"],
+            message=f"stub for {url}",
+            open_recommendation="allow",
+        ),
+    )
+
+    result = url_check(
+        UrlCheckRequest(
+            input_type="text",
+            input="候補は https://example.com/path のみ",
+            selected_url="https://EXAMPLE.com/path",
+        ),
+        _=None,
+    )
+    assert result["normalized_url"] == "https://example.com/path"
+
+
+def test_url_check_text_returns_normalized_candidate_urls(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "main.judge_url_locally",
+        lambda url: LocalJudgeResult(
+            status="likely_safe",
+            reason_codes=["stub"],
+            message=f"stub for {url}",
+            open_recommendation="allow",
+        ),
+    )
+
+    result = url_check(
+        UrlCheckRequest(input_type="text", input="候補 https://EXAMPLE.com/path"),
+        _=None,
+    )
+    assert result["candidate_urls"] == ["https://example.com/path"]

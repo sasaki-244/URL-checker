@@ -228,8 +228,8 @@ def url_check(
 
     candidate_urls: list[str] = []
     if request.input_type == "text":
-        candidate_urls = extract_http_urls(request.input)
-        if not candidate_urls:
+        raw_candidate_urls = extract_http_urls(request.input)
+        if not raw_candidate_urls:
             return {
                 "status": "unknown",
                 "domain": "",
@@ -239,12 +239,15 @@ def url_check(
                 "message": "No URL was found in the input text.",
                 "open_recommendation": "warn",
             }
-        if request.selected_url and request.selected_url not in candidate_urls:
+        normalized_candidate_urls = [normalize_url(url) for url in raw_candidate_urls]
+        normalized_selected_url = normalize_url(request.selected_url) if request.selected_url else ""
+        if normalized_selected_url and normalized_selected_url not in normalized_candidate_urls:
             raise HTTPException(
                 status_code=400,
                 detail={"reason_code": "parse_error", "message": "selected_url is not in candidate_urls."},
             )
-        target_url = normalize_url(request.selected_url or candidate_urls[0])
+        candidate_urls = normalized_candidate_urls
+        target_url = normalized_selected_url or normalized_candidate_urls[0]
     else:
         target_url = normalize_url(request.selected_url or request.input)
         if not is_http_url(target_url):
