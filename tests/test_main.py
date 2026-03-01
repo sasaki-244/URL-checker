@@ -47,3 +47,29 @@ def test_judge_url_locally_returns_suspected_when_safe_browsing_has_matches(monk
     assert result.status == "suspected"
     assert result.reason_codes == ["safe_browsing_hit"]
     assert result.open_recommendation == "warn"
+
+
+def test_judge_url_locally_returns_likely_safe_when_safe_browsing_has_no_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b"{}"
+
+    def fake_urlopen(req, timeout=0):  # noqa: ANN001
+        _ = req, timeout
+        return FakeResponse()
+
+    monkeypatch.setenv("GOOGLE_SAFE_BROWSING_API_KEY", "dummy-key")
+    monkeypatch.setattr("main.request.urlopen", fake_urlopen)
+
+    result = judge_url_locally("https://example.com")
+    assert result.status == "likely_safe"
+    assert result.reason_codes == ["no_hit"]
+    assert result.open_recommendation == "allow"
