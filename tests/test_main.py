@@ -100,3 +100,9 @@ def test_verify_api_key_raises_401_when_bearer_token_is_invalid(monkeypatch: pyt
         verify_api_key("Bearer wrong-secret")
     assert exc.value.status_code == 401
     assert exc.value.detail["reason_code"] == "unauthorized"
+
+
+def test_verify_api_key_accepts_valid_bearer_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("URL_CHECKER_API_KEY", "dummy-secret")
+
+    verify_api_key("Bearer dummy-secret")
