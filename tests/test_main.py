@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 import pytest
+from urllib import error
 
 from main import LocalJudgeResult, UrlCheckRequest, judge_url_locally, url_check, verify_api_key
 
@@ -71,7 +72,7 @@ def test_judge_url_locally_returns_likely_safe_when_safe_browsing_has_no_matches
 
     result = judge_url_locally("https://example.com")
     assert result.status == "likely_safe"
-    assert result.reason_codes == ["no_hit"]
+    assert result.reason_codes == ["safe_browsing_no_hit"]
     assert result.open_recommendation == "allow"
 
 
@@ -80,7 +81,61 @@ def test_judge_url_locally_returns_unknown_when_api_key_is_missing(monkeypatch: 
 
     result = judge_url_locally("https://example.com")
     assert result.status == "unknown"
-    assert result.reason_codes == ["config_error"]
+    assert result.reason_codes == ["safe_browsing_config_error"]
+    assert result.open_recommendation == "warn"
+
+
+def test_judge_url_locally_returns_unknown_when_safe_browsing_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_urlopen(req, timeout=0):  # noqa: ANN001
+        _ = req, timeout
+        raise TimeoutError()
+
+    monkeypatch.setenv("GOOGLE_SAFE_BROWSING_API_KEY", "dummy-key")
+    monkeypatch.setattr("main.request.urlopen", fake_urlopen)
+
+    result = judge_url_locally("https://example.com")
+    assert result.status == "unknown"
+    assert result.reason_codes == ["safe_browsing_timeout"]
+    assert result.open_recommendation == "warn"
+
+
+def test_judge_url_locally_returns_unknown_when_safe_browsing_request_fails(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_urlopen(req, timeout=0):  # noqa: ANN001
+        _ = req, timeout
+        raise error.URLError("network down")
+
+    monkeypatch.setenv("GOOGLE_SAFE_BROWSING_API_KEY", "dummy-key")
+    monkeypatch.setattr("main.request.urlopen", fake_urlopen)
+
+    result = judge_url_locally("https://example.com")
+    assert result.status == "unknown"
+    assert result.reason_codes == ["safe_browsing_request_failed"]
+    assert result.open_recommendation == "warn"
+
+
+def test_judge_url_locally_returns_unknown_when_safe_browsing_response_is_invalid_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b"{not-json"
+
+    def fake_urlopen(req, timeout=0):  # noqa: ANN001
+        _ = req, timeout
+        return FakeResponse()
+
+    monkeypatch.setenv("GOOGLE_SAFE_BROWSING_API_KEY", "dummy-key")
+    monkeypatch.setattr("main.request.urlopen", fake_urlopen)
+
+    result = judge_url_locally("https://example.com")
+    assert result.status == "unknown"
+    assert result.reason_codes == ["safe_browsing_parse_failed"]
     assert result.open_recommendation == "warn"
 
 
