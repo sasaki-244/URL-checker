@@ -106,3 +106,12 @@ def test_verify_api_key_accepts_valid_bearer_token(monkeypatch: pytest.MonkeyPat
     monkeypatch.setenv("URL_CHECKER_API_KEY", "dummy-secret")
 
     verify_api_key("Bearer dummy-secret")
+
+
+def test_verify_api_key_raises_500_when_server_key_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("URL_CHECKER_API_KEY", raising=False)
+
+    with pytest.raises(HTTPException) as exc:
+        verify_api_key("Bearer anything")
+    assert exc.value.status_code == 500
+    assert exc.value.detail["reason_code"] == "server_error"
