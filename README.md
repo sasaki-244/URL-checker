@@ -41,6 +41,84 @@ python -m pip install -r requirements.txt
 python -m pytest -q
 ```
 
+## iOS Shortcut Setup (Share Sheet)
+
+このプロジェクトのiOS側は「ショートカット」だけで実装します。  
+入力は共有シートから受け取り、結果は表示のみ行います（`Open URL` / `Copy URL` は実装しない方針）。
+
+事前に必要なもの:
+
+- API公開URL（例: `https://your-app.onrender.com`）
+- `URL_CHECKER_API_KEY`
+
+### 1. 共有シートから起動できるショートカットを作る
+
+1. ショートカットアプリで新規作成し、名前を `URLチェック` にする
+2. 詳細設定で共有シート表示を有効化
+3. 受け取りタイプを `URL` と `テキスト` にする
+
+### 2. 入力分岐を作る
+
+1. `ショートカット入力` をテキスト化
+2. `If` で `://` を含むか判定
+3. 含む場合は `target_url`（URL入力扱い）、含まない場合は `input_text`（テキスト入力扱い）に保存
+
+### 3. テキスト入力時にURL候補を抽出する
+
+`input_text` 側で `URLの内容を取得` を使って以下を実行:
+
+- `POST /v1/extract-urls`
+- ヘッダ:
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <URL_CHECKER_API_KEY>`
+- JSON本文:
+  - `text: <input_text>`
+
+レスポンスの `candidate_urls` を取得し、件数で分岐:
+
+- 0件: `Unknown` 表示して終了
+- 1件: その1件を `selected_url` にする
+- 複数件: メニューで1件選んで `selected_url` にする
+
+### 4. 判定APIを呼ぶ
+
+`URLの内容を取得` で以下を実行:
+
+- `POST /v1/url-check`
+- ヘッダ:
+  - `Content-Type: application/json`
+  - `Authorization: Bearer <URL_CHECKER_API_KEY>`
+- JSON本文:
+  - `input_type: "url"`
+  - `input: <selected_url or target_url>`
+  - `selected_url: <selected_url or target_url>`
+  - `client_ts: <現在時刻 or 空>`
+
+### 5. 判定結果を表示する（操作なし）
+
+レスポンスから以下を取り出して表示:
+
+- `status`
+- `domain`
+- `normalized_url`
+- `reason_codes`
+- `open_recommendation`
+
+表示例:
+
+```text
+判定: [status]
+ドメイン: [domain]
+URL: [normalized_url]
+理由: [reason_codes]
+推奨: [open_recommendation]
+```
+
+注記:
+
+- `Open URL` / `Copy URL` アクションは実装しない
+- `status` が `likely_safe` / `suspected` / `unknown` のいずれでも表示のみ
+
 ## Reason Codes
 
 `/v1/url-check` の主な `reason_codes`:
