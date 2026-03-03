@@ -2,7 +2,7 @@ from fastapi import HTTPException
 import pytest
 from urllib import error
 
-from main import LocalJudgeResult, UrlCheckRequest, judge_url_locally, url_check, verify_api_key
+from main import LocalJudgeResult, UrlCheckRequest, judge_url_locally, normalize_url, url_check, verify_api_key
 
 
 def test_url_check_text_no_url_found_returns_unknown() -> None:
@@ -226,3 +226,13 @@ def test_url_check_text_returns_normalized_candidate_urls(monkeypatch: pytest.Mo
         _=None,
     )
     assert result["candidate_urls"] == ["https://example.com/path"]
+
+
+def test_normalize_url_converts_idn_host_to_punycode() -> None:
+    result = normalize_url("https://例え.テスト/path")
+    assert result == "https://xn--r8jz45g.xn--zckzah/path"
+
+
+def test_normalize_url_keeps_ascii_host_behavior_unchanged() -> None:
+    result = normalize_url("https://example.com/path")
+    assert result == "https://example.com/path"

@@ -70,7 +70,11 @@ def normalize_url(value: str) -> str:
     if not parsed.netloc:
         return normalized
 
-    host = (parsed.hostname or "").lower()
+    try:
+        host = (parsed.hostname or "").encode("idna").decode("ascii").lower()
+    except UnicodeError:
+        return normalized
+
     netloc = host
     if parsed.port:
         netloc = f"{netloc}:{parsed.port}"
